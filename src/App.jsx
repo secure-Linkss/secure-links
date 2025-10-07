@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './hooks/useTheme'
+import { Toaster } from './components/ui/sonner'
 import Layout from './components/Layout'
 import LoginPage from './components/LoginPage'
 import Dashboard from './components/Dashboard'
@@ -83,6 +84,7 @@ function App() {
           )}
         </div>
       </Router>
+      <Toaster position="top-right" expand={true} richColors />
     </ThemeProvider>
   )
 }
