@@ -21,7 +21,9 @@ import {
   Scissors,
   Bell,
   LogOut,
-  User
+  User,
+  Menu,
+  X
 } from 'lucide-react'
 import Logo from './Logo'
 
@@ -30,6 +32,7 @@ const Layout = ({ children, user, onLogout }) => {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
   const [notificationCount, setNotificationCount] = useState(0)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     fetchNotifications()
@@ -76,26 +79,47 @@ const Layout = ({ children, user, onLogout }) => {
 
   return (
     <div className="flex h-screen bg-slate-900">
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className="w-64 bg-slate-800 border-r border-slate-700 flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-slate-700">
+      <div className={`
+        fixed lg:static inset-y-0 left-0 z-50 w-64 bg-slate-800 border-r border-slate-700 flex flex-col
+        transform transition-transform duration-200 ease-in-out
+        ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}>
+        {/* Logo & Mobile Close Button */}
+        <div className="p-6 border-b border-slate-700 flex items-center justify-between">
           <Logo size="md" />
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="lg:hidden text-slate-400 hover:text-white"
+          >
+            <X className="h-6 w-6" />
+          </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {menuItems.map((item) => {
             if (item.adminOnly && (!user || (user.role !== "admin" && user.role !== "main_admin"))) {
               return null;
             }
             const Icon = item.icon
             const active = isActive(item.path)
-            
+
             return (
               <button
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => {
+                  navigate(item.path)
+                  setMobileMenuOpen(false)
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
                   active
                     ? 'bg-blue-600 text-white'
@@ -104,11 +128,11 @@ const Layout = ({ children, user, onLogout }) => {
               >
                 <Icon className="h-5 w-5" />
                 <span className="flex-1">{item.label}</span>
-                <Badge 
+                <Badge
                   variant={active ? "secondary" : "outline"}
                   className={`text-xs ${
-                    active 
-                      ? 'bg-white text-blue-600' 
+                    active
+                      ? 'bg-white text-blue-600'
                       : 'border-slate-600 text-slate-400'
                   }`}
                 >
@@ -123,30 +147,38 @@ const Layout = ({ children, user, onLogout }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="bg-slate-800 border-b border-slate-700 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Badge variant="outline" className="border-blue-500 text-blue-400 bg-slate-700">
+        <header className="bg-slate-800 border-b border-slate-700 px-4 lg:px-6 py-4 flex items-center justify-between">
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="lg:hidden text-slate-400 hover:text-white mr-4"
+          >
+            <Menu className="h-6 w-6" />
+          </button>
+
+          <div className="flex items-center gap-2 lg:gap-4">
+            <Badge variant="outline" className="border-blue-500 text-blue-400 bg-slate-700 hidden sm:flex">
               <User className="h-3 w-3 mr-1" />
               A1
             </Badge>
             {user && (
-              <Badge 
-                variant="outline" 
+              <Badge
+                variant="outline"
                 className={`text-xs ${
-                  user.role === 'main_admin' 
-                    ? 'border-purple-500 text-purple-400 bg-purple-900/20' 
+                  user.role === 'main_admin'
+                    ? 'border-purple-500 text-purple-400 bg-purple-900/20'
                     : user.role === 'admin'
                     ? 'border-blue-500 text-blue-400 bg-blue-900/20'
                     : 'border-gray-500 text-gray-400 bg-gray-900/20'
                 }`}
               >
-                {user.role === 'main_admin' ? 'Main Admin' : 
+                {user.role === 'main_admin' ? 'Main Admin' :
                  user.role === 'admin' ? 'Admin' : 'Member'}
               </Badge>
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 lg:gap-4">
             {/* Notifications */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -194,7 +226,7 @@ const Layout = ({ children, user, onLogout }) => {
                       A
                     </AvatarFallback>
                   </Avatar>
-                  <span className="text-sm">admin@brainlinktracker.com</span>
+                  <span className="text-sm hidden md:inline">admin@brainlinktracker.com</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="bg-slate-800 border-slate-700">
