@@ -519,3 +519,109 @@ def get_audit_log(current_user, log_id):
     log = AuditLog.query.get_or_404(log_id)
     return jsonify(log.to_dict())
 
+<<<<<<< HEAD
+@admin_bp.route('/audit-logs/export', methods=['GET'])
+@admin_required
+def export_audit_logs(current_user):
+    """Export audit logs as CSV"""
+    import csv
+    from io import StringIO
+    from flask import make_response
+
+    logs = AuditLog.query.order_by(AuditLog.created_at.desc()).all()
+
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(['ID', 'Actor ID', 'Action', 'Target Type', 'Target ID', 'IP Address', 'Created At'])
+
+    for log in logs:
+        writer.writerow([log.id, log.actor_id, log.action, log.target_type, log.target_id, log.ip_address, log.created_at])
+
+    output = make_response(si.getvalue())
+    output.headers["Content-Disposition"] = "attachment; filename=audit_logs.csv"
+    output.headers["Content-type"] = "text/csv"
+    return output
+
+@admin_bp.route('/system/delete-all', methods=['POST'])
+@main_admin_required
+def delete_all_system_data(current_user):
+    """Delete all system data (DANGEROUS - Main Admin only)"""
+    try:
+        confirm = request.get_json().get('confirm')
+        if confirm != 'DELETE_ALL_DATA':
+            return jsonify({'error': 'Confirmation text required'}), 400
+
+        # Delete in correct order to respect foreign keys
+        TrackingEvent.query.delete()
+        Link.query.delete()
+        Campaign.query.filter(Campaign.owner_id != current_user.id).delete()
+        AuditLog.query.delete()
+        User.query.filter(User.id != current_user.id, User.role != 'main_admin').delete()
+
+        db.session.commit()
+
+        log_admin_action(current_user.id, 'System reset - All data deleted', None, 'system')
+
+        return jsonify({'message': 'All system data deleted successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/dashboard/stats', methods=['GET'])
+@admin_required
+def get_dashboard_stats(current_user):
+    """Get comprehensive dashboard statistics"""
+    from sqlalchemy import func
+    from datetime import datetime, timedelta
+
+    try:
+        # User statistics
+        total_users = User.query.count()
+        active_users = User.query.filter_by(status='active').count()
+        pending_users = User.query.filter_by(status='pending').count()
+        suspended_users = User.query.filter_by(status='suspended').count()
+
+        # Campaign statistics
+        total_campaigns = Campaign.query.count()
+        active_campaigns = Campaign.query.filter_by(status='active').count()
+
+        # Link statistics
+        total_links = Link.query.count()
+        active_links = Link.query.filter_by(status='active').count()
+
+        # Event statistics
+        total_events = TrackingEvent.query.count()
+        today = datetime.utcnow().date()
+        today_events = TrackingEvent.query.filter(func.date(TrackingEvent.timestamp) == today).count()
+
+        # Get recent activity
+        recent_users = User.query.order_by(User.created_at.desc()).limit(5).all()
+        recent_events = TrackingEvent.query.order_by(TrackingEvent.timestamp.desc()).limit(10).all()
+
+        return jsonify({
+            'users': {
+                'total': total_users,
+                'active': active_users,
+                'pending': pending_users,
+                'suspended': suspended_users
+            },
+            'campaigns': {
+                'total': total_campaigns,
+                'active': active_campaigns
+            },
+            'links': {
+                'total': total_links,
+                'active': active_links
+            },
+            'events': {
+                'total': total_events,
+                'today': today_events
+            },
+            'recent_users': [u.to_dict() for u in recent_users],
+            'recent_events': [e.to_dict() for e in recent_events]
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+=======
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

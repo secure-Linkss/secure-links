@@ -1,4 +1,55 @@
 from flask import Blueprint, request, jsonify, session
+<<<<<<< HEAD
+from src.models.link import Link
+from src.models.user import User, db
+from functools import wraps
+
+shorten_bp = Blueprint('shorten', __name__)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+@shorten_bp.route('/shorten', methods=['POST'])
+@login_required
+def shorten_url():
+    """Shorten URL (alias for creating link)"""
+    try:
+        user_id = session.get('user_id')
+        user = User.query.get(user_id)
+
+        if not user.can_create_link():
+            return jsonify({'error': 'Daily link limit reached'}), 403
+
+        data = request.get_json()
+        url = data.get('url')
+
+        if not url:
+            return jsonify({'error': 'URL required'}), 400
+
+        link = Link(
+            user_id=user_id,
+            target_url=url,
+            campaign_name=data.get('campaign_name', 'Quick Link')
+        )
+
+        db.session.add(link)
+        user.increment_link_usage()
+        db.session.commit()
+
+        return jsonify({
+            'short_url': f"{request.host_url.rstrip('/')}/t/{link.short_code}",
+            'short_code': link.short_code
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+=======
 from src.models.user import db, User
 from src.models.link import Link
 import string
@@ -87,3 +138,4 @@ def shorten_url():
         print(f"Error shortening URL: {e}")
         return jsonify({"error": "Failed to shorten URL"}), 500
 
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

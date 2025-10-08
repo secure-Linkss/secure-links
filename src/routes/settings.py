@@ -1,5 +1,73 @@
 from flask import Blueprint, request, jsonify, session
 from src.models.user import User, db
+<<<<<<< HEAD
+from functools import wraps
+
+settings_bp = Blueprint('settings', __name__)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+@settings_bp.route('/settings', methods=['GET'])
+@login_required
+def get_settings():
+    """Get user settings"""
+    try:
+        user_id = session.get('user_id')
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        import json
+        settings = json.loads(user.settings) if user.settings else {}
+
+        return jsonify(settings), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@settings_bp.route('/settings', methods=['POST'])
+@login_required
+def update_settings():
+    """Update user settings"""
+    try:
+        user_id = session.get('user_id')
+        user = User.query.get(user_id)
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        data = request.get_json()
+
+        import json
+        user.settings = json.dumps(data)
+        db.session.commit()
+
+        return jsonify({'message': 'Settings updated successfully'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@settings_bp.route('/settings/test-telegram', methods=['POST'])
+@login_required
+def test_telegram():
+    """Test Telegram connection"""
+    try:
+        data = request.get_json()
+        bot_token = data.get('botToken')
+        chat_id = data.get('chatId')
+
+        if not bot_token or not chat_id:
+            return jsonify({'error': 'Bot token and chat ID required'}), 400
+
+=======
 from src.services.telegram import TelegramService, TelegramNotifier
 import json
 import logging
@@ -484,10 +552,26 @@ def test_telegram_connection():
         message = "🔗 Brain Link Tracker Test\n\nTelegram notifications are working correctly!"
         
         # Send test message
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)
         import requests
         telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         payload = {
             'chat_id': chat_id,
+<<<<<<< HEAD
+            'text': 'Test message from Brain Link Tracker',
+            'parse_mode': 'HTML'
+        }
+
+        response = requests.post(telegram_url, json=payload, timeout=10)
+
+        if response.status_code == 200:
+            return jsonify({'message': 'Test message sent successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to send message'}), 400
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+=======
             'text': message,
             'parse_mode': 'HTML'
         }
@@ -513,3 +597,4 @@ def test_telegram_connection():
         logger.error(f"Error testing Telegram: {e}")
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
 
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

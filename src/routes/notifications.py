@@ -1,3 +1,16 @@
+<<<<<<< HEAD
+from flask import Blueprint, request, jsonify
+
+notifications_bp = Blueprint('notifications', __name__)
+
+@notifications_bp.route('/notifications', methods=['GET'])
+def get_notifications():
+    """Get notifications placeholder"""
+    try:
+        return jsonify([]), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+=======
 from flask import Blueprint, request, jsonify, session
 from functools import wraps
 from src.models import db
@@ -301,3 +314,4 @@ def get_notification_count(current_user):
     except Exception as e:
         return jsonify({'count': 0})
 
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

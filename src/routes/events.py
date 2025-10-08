@@ -1,4 +1,68 @@
 from flask import Blueprint, request, jsonify, session
+<<<<<<< HEAD
+from src.models.tracking_event import TrackingEvent
+from src.models.link import Link
+from src.models.user import db
+from functools import wraps
+
+events_bp = Blueprint('events', __name__)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+@events_bp.route('/api/events', methods=['GET'])
+@login_required
+def get_events():
+    """Get tracking events for user's links"""
+    try:
+        user_id = session.get('user_id')
+
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        link_id = request.args.get('link_id', type=int)
+
+        query = TrackingEvent.query.join(Link).filter(Link.user_id == user_id)
+
+        if link_id:
+            query = query.filter(TrackingEvent.link_id == link_id)
+
+        pagination = query.order_by(TrackingEvent.timestamp.desc()).paginate(
+            page=page, per_page=per_page, error_out=False
+        )
+
+        events = [event.to_dict() for event in pagination.items]
+
+        return jsonify({
+            'events': events,
+            'total': pagination.total,
+            'pages': pagination.pages,
+            'current_page': page
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@events_bp.route('/api/events/live', methods=['GET'])
+@login_required
+def get_live_events():
+    """Get recent live events"""
+    try:
+        user_id = session.get('user_id')
+
+        events = TrackingEvent.query.join(Link).filter(
+            Link.user_id == user_id
+        ).order_by(TrackingEvent.timestamp.desc()).limit(20).all()
+
+        return jsonify([event.to_dict() for event in events]), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+=======
 from src.models.user import User, db
 from src.models.link import Link
 from src.models.tracking_event import TrackingEvent
@@ -222,3 +286,4 @@ def delete_event(event_id):
         print(f"Error deleting event: {e}")
         return jsonify({'error': 'Failed to delete event'}), 500
 
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

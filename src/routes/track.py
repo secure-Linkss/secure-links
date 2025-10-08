@@ -1,3 +1,73 @@
+<<<<<<< HEAD
+from flask import Blueprint, request, redirect, render_template_string
+from src.models.link import Link
+from src.models.tracking_event import TrackingEvent
+from src.models.user import db
+from datetime import datetime
+
+track_bp = Blueprint('track', __name__)
+
+@track_bp.route('/t/<short_code>', methods=['GET'])
+def track_click(short_code):
+    """Track link click and redirect"""
+    try:
+        link = Link.query.filter_by(short_code=short_code).first()
+
+        if not link or link.status != 'active':
+            return "Link not found or inactive", 404
+
+        event = TrackingEvent(
+            link_id=link.id,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent'),
+            timestamp=datetime.utcnow(),
+            status='redirected',
+            redirected=True
+        )
+
+        db.session.add(event)
+        link.total_clicks += 1
+        db.session.commit()
+
+        return redirect(link.target_url)
+
+    except Exception as e:
+        print(f"Track error: {e}")
+        return "Error processing request", 500
+
+@track_bp.route('/p/<short_code>', methods=['GET'])
+def pixel_track(short_code):
+    """Pixel tracking endpoint"""
+    try:
+        link = Link.query.filter_by(short_code=short_code).first()
+
+        if link:
+            email = request.args.get('email')
+            unique_id = request.args.get('id')
+
+            event = TrackingEvent(
+                link_id=link.id,
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent'),
+                captured_email=email,
+                unique_id=unique_id,
+                timestamp=datetime.utcnow(),
+                status='opened',
+                email_opened=True
+            )
+
+            db.session.add(event)
+            db.session.commit()
+
+        transparent_gif = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+
+        return transparent_gif, 200, {'Content-Type': 'image/gif'}
+
+    except Exception as e:
+        print(f"Pixel track error: {e}")
+        transparent_gif = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
+        return transparent_gif, 200, {'Content-Type': 'image/gif'}
+=======
 
 from flask import Blueprint, request, redirect, jsonify, make_response
 from src.models.user import db
@@ -416,3 +486,4 @@ def capture_credentials():
 
 
 
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

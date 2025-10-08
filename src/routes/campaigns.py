@@ -1,4 +1,126 @@
 from flask import Blueprint, request, jsonify, session
+<<<<<<< HEAD
+from src.models.campaign import Campaign
+from src.models.link import Link
+from src.models.user import User, db
+from functools import wraps
+
+campaigns_bp = Blueprint('campaigns', __name__)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+@campaigns_bp.route('/campaigns', methods=['GET'])
+@login_required
+def get_campaigns():
+    """Get all campaigns for current user"""
+    try:
+        user_id = session.get('user_id')
+
+        campaigns = Campaign.query.filter_by(owner_id=user_id).order_by(Campaign.created_at.desc()).all()
+
+        return jsonify([campaign.to_dict() for campaign in campaigns]), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@campaigns_bp.route('/campaigns', methods=['POST'])
+@login_required
+def create_campaign():
+    """Create new campaign"""
+    try:
+        user_id = session.get('user_id')
+        data = request.get_json()
+
+        name = data.get('name')
+        if not name:
+            return jsonify({'error': 'Campaign name required'}), 400
+
+        campaign = Campaign(
+            name=name,
+            description=data.get('description', ''),
+            owner_id=user_id,
+            status=data.get('status', 'active')
+        )
+
+        db.session.add(campaign)
+        db.session.commit()
+
+        return jsonify(campaign.to_dict()), 201
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@campaigns_bp.route('/campaigns/<int:campaign_id>', methods=['GET'])
+@login_required
+def get_campaign(campaign_id):
+    """Get specific campaign"""
+    try:
+        user_id = session.get('user_id')
+        campaign = Campaign.query.filter_by(id=campaign_id, owner_id=user_id).first()
+
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        return jsonify(campaign.to_dict()), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@campaigns_bp.route('/campaigns/<int:campaign_id>', methods=['PATCH'])
+@login_required
+def update_campaign(campaign_id):
+    """Update campaign"""
+    try:
+        user_id = session.get('user_id')
+        campaign = Campaign.query.filter_by(id=campaign_id, owner_id=user_id).first()
+
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        data = request.get_json()
+
+        if 'name' in data:
+            campaign.name = data['name']
+        if 'description' in data:
+            campaign.description = data['description']
+        if 'status' in data:
+            campaign.status = data['status']
+
+        db.session.commit()
+
+        return jsonify(campaign.to_dict()), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@campaigns_bp.route('/campaigns/<int:campaign_id>', methods=['DELETE'])
+@login_required
+def delete_campaign(campaign_id):
+    """Delete campaign"""
+    try:
+        user_id = session.get('user_id')
+        campaign = Campaign.query.filter_by(id=campaign_id, owner_id=user_id).first()
+
+        if not campaign:
+            return jsonify({'error': 'Campaign not found'}), 404
+
+        db.session.delete(campaign)
+        db.session.commit()
+
+        return jsonify({'message': 'Campaign deleted successfully'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+=======
 from src.models.user import User, db
 from src.models.link import Link
 from src.models.tracking_event import TrackingEvent
@@ -196,3 +318,4 @@ def delete_campaign(campaign_name):
         print(f"Error deleting campaign: {e}")
         return jsonify({'error': 'Failed to delete campaign'}), 500
 
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

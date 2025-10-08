@@ -1,4 +1,83 @@
 from flask import Blueprint, request, jsonify, session
+<<<<<<< HEAD
+from src.models.link import Link
+from src.models.tracking_event import TrackingEvent
+from src.models.campaign import Campaign
+from src.models.user import User, db
+from sqlalchemy import func
+from functools import wraps
+from datetime import datetime, timedelta
+
+analytics_bp = Blueprint('analytics', __name__)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+@analytics_bp.route('/analytics/dashboard', methods=['GET'])
+@login_required
+def get_dashboard_stats():
+    """Get dashboard analytics"""
+    try:
+        user_id = session.get('user_id')
+
+        total_links = Link.query.filter_by(user_id=user_id).count()
+        total_clicks = db.session.query(func.sum(Link.total_clicks)).filter_by(user_id=user_id).scalar() or 0
+        total_campaigns = Campaign.query.filter_by(owner_id=user_id).count()
+
+        today = datetime.utcnow().date()
+        today_clicks = TrackingEvent.query.join(Link).filter(
+            Link.user_id == user_id,
+            func.date(TrackingEvent.timestamp) == today
+        ).count()
+
+        return jsonify({
+            'total_links': total_links,
+            'total_clicks': int(total_clicks),
+            'total_campaigns': total_campaigns,
+            'today_clicks': today_clicks
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@analytics_bp.route('/analytics/links/<int:link_id>', methods=['GET'])
+@login_required
+def get_link_analytics(link_id):
+    """Get analytics for specific link"""
+    try:
+        user_id = session.get('user_id')
+        link = Link.query.filter_by(id=link_id, user_id=user_id).first()
+
+        if not link:
+            return jsonify({'error': 'Link not found'}), 404
+
+        events = TrackingEvent.query.filter_by(link_id=link_id).all()
+
+        countries = db.session.query(
+            TrackingEvent.country,
+            func.count(TrackingEvent.id)
+        ).filter_by(link_id=link_id).group_by(TrackingEvent.country).all()
+
+        devices = db.session.query(
+            TrackingEvent.device_type,
+            func.count(TrackingEvent.id)
+        ).filter_by(link_id=link_id).group_by(TrackingEvent.device_type).all()
+
+        return jsonify({
+            'total_clicks': len(events),
+            'countries': [{'name': c[0], 'count': c[1]} for c in countries if c[0]],
+            'devices': [{'type': d[0], 'count': d[1]} for d in devices if d[0]],
+            'recent_events': [e.to_dict() for e in events[:10]]
+        }), 200
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+=======
 from src.models.user import User, db
 from src.models.link import Link
 from src.models.tracking_event import TrackingEvent
@@ -552,3 +631,4 @@ def get_device_analytics():
         print(f"Error fetching device analytics: {e}")
         return jsonify({'error': 'Failed to fetch device analytics'}), 500
 
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

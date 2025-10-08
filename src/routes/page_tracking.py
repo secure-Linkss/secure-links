@@ -1,4 +1,17 @@
 from flask import Blueprint, request, jsonify
+<<<<<<< HEAD
+
+page_tracking_bp = Blueprint('page_tracking', __name__)
+
+@page_tracking_bp.route('/page-tracking', methods=['POST'])
+def track_page():
+    """Track page events"""
+    try:
+        data = request.get_json()
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+=======
 from src.models.user import db
 from src.models.tracking_event import TrackingEvent
 from datetime import datetime
@@ -100,3 +113,4 @@ def track_session_end():
         db.session.rollback()
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
+>>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)
