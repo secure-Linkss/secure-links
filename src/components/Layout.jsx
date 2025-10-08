@@ -40,14 +40,21 @@ const Layout = ({ children, user, onLogout }) => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch('/api/notifications')
-      if (response.ok) {
-        const data = await response.json()
-        setNotifications(data.notifications || [])
-        setNotificationCount(data.count || 0)
+      // Fetch notification count
+      const countResponse = await fetch("/api/notifications/count")
+      if (countResponse.ok) {
+        const countData = await countResponse.json()
+        setNotificationCount(countData.count || 0)
+      }
+
+      // Fetch actual notifications
+      const notificationsResponse = await fetch("/api/notifications")
+      if (notificationsResponse.ok) {
+        const notificationsData = await notificationsResponse.json()
+        setNotifications(notificationsData.notifications || [])
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error)
+      console.error("Error fetching notifications:", error)
     }
   }
 

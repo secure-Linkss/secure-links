@@ -1,10 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-<<<<<<< HEAD
 from datetime import datetime, date, timedelta
-=======
-from datetime import datetime, date
->>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)
 import jwt
 import os
 
@@ -23,6 +19,7 @@ class User(db.Model):
 
     # New fields for roles and tracking
     role = db.Column(db.String(20), default='member')  # member, admin, assistant_admin
+    status = db.Column(db.String(20), default='pending') # pending, active, suspended, expired
     last_login = db.Column(db.DateTime)
     last_ip = db.Column(db.String(45))
     login_count = db.Column(db.Integer, default=0)
@@ -76,11 +73,8 @@ class User(db.Model):
         """Generate JWT token for API authentication"""
         payload = {
             'user_id': self.id,
-<<<<<<< HEAD
             'exp': datetime.utcnow() + timedelta(days=30)
-=======
-            'exp': datetime.utcnow() + datetime.timedelta(days=30)
->>>>>>> 00392b0 (Initial commit of unified Brain Link Tracker project with integrated admin panel fixes)
+
         }
         return jwt.encode(payload, os.environ.get('SECRET_KEY', 'ej5B3Amppi4gjpbC65te6rJuvJzgVCWW_xfB-ZLR1TE'), algorithm='HS256')
 
@@ -120,5 +114,4 @@ class User(db.Model):
                 'account_locked_until': self.account_locked_until.isoformat() if self.account_locked_until else None,
             })
         return data
-
 

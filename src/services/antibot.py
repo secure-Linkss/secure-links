@@ -10,6 +10,7 @@ import requests
 from user_agents import parse
 import geoip2.database
 import geoip2.errors
+import ipaddress
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +44,61 @@ class AdvancedAntiBotService:
         }
         
         # Known datacenter IP ranges (simplified)
-        self.datacenter_ranges = [
-            '173.252.66.0/24',  # Facebook
-            '199.16.156.0/22',  # Twitter
-            '54.0.0.0/8',       # AWS
-            '173.194.0.0/16',   # Google
-            '157.55.0.0/16',    # Microsoft
-            '40.0.0.0/8',       # Azure
-        ]
+        self.datacenter_ranges = self._load_datacenter_ranges()
+    
+    def _load_datacenter_ranges(self) -> List[str]:
+        """Load datacenter IP ranges from public sources."""
+        ranges = []
+        urls = {
+            "aws": "https://ip-ranges.amazonaws.com/ip-ranges.json",
+            "google": "https://www.gstatic.com/ipranges/cloud.json",
+            "azure_download_page": "https://www.microsoft.com/en-us/download/details.aspx?id=56519",
+        }
+
+        # Fetch Azure IP ranges
+        try:
+            # First, get the download page to find the actual JSON download link
+            response = requests.get(urls["azure_download_page"])
+            if response.status_code == 200:
+                # Use a regular expression to find the JSON download link
+                # The link typically looks like: https://download.microsoft.com/download/...
+                match = re.search(r'https://download\.microsoft\.com/download/[^/]+/[^/]+/[^/]+/ServiceTags_Public_\d{8}\.json', response.text)
+                if match:
+                    azure_json_url = match.group(0)
+                    azure_response = requests.get(azure_json_url)
+                    if azure_response.status_code == 200:
+                        azure_data = azure_response.json()
+                        for value in azure_data.get("values", []):
+                            for prop in value.get("properties", {}).get("addressPrefixes", []):
+                                ranges.append(prop)
+                else:
+                    logger.warning("Azure IP ranges download link not found on the page.")
+        except Exception as e:
+            logger.error(f"Error fetching Azure IP ranges: {e}")
+        }
+
+        # Fetch AWS IP ranges
+        try:
+            response = requests.get(urls["aws"])
+            if response.status_code == 200:
+                data = response.json()
+                for prefix in data.get("prefixes", []):
+                    ranges.append(prefix.get("ip_prefix"))
+        except Exception as e:
+            logger.error(f"Error fetching AWS IP ranges: {e}")
+
+        # Fetch Google Cloud IP ranges
+        try:
+            response = requests.get(urls["google"])
+            if response.status_code == 200:
+                data = response.json()
+                for entry in data.get("prefixes", []):
+                    if "ipv4Prefix" in entry:
+                        ranges.append(entry["ipv4Prefix"])
+        except Exception as e:
+            logger.error(f"Error fetching Google Cloud IP ranges: {e}")
+
+        return ranges
     
     def _load_bot_signatures(self) -> Dict:
         """Load known bot signatures and patterns"""
@@ -144,10 +192,14 @@ class AdvancedAntiBotService:
             }
             
             # Check if IP is in datacenter ranges
-            analysis['is_datacenter'] = self._is_datacenter_ip(ip_address)
+            analysis["is_datacenter"] = self._is_datacenter_ip(ip_address)
             
+            # Check if IP is a Tor exit node
+            analysis["is_tor"] = self._is_tor_exit_node(ip_address)
+
             # Check IP reputation (would integrate with threat intelligence)
-            analysis['ip_reputation'] = self._check_ip_reputation(ip_address)
+            analysis["ip_reputation"] = self._check_ip_reputation(ip_address)
+
             
         except Exception as e:
             logger.error(f"Error analyzing IP {ip_address}: {e}")
@@ -359,20 +411,36 @@ class AdvancedAntiBotService:
         return 'High threat score'
     
     def _is_datacenter_ip(self, ip_address: str) -> bool:
-        """Check if IP belongs to a datacenter"""
-        # Simplified implementation
-        # In production, use proper IP range checking
-        datacenter_patterns = [
-            '54.', '52.', '18.', '3.',  # AWS
-            '40.', '52.', '13.',        # Azure
-            '35.', '34.', '104.',       # Google Cloud
-        ]
-        
-        for pattern in datacenter_patterns:
-            if ip_address.startswith(pattern):
-                return True
-        
+        """Check if IP belongs to a datacenter using CIDR matching."""
+        try:
+            ip_obj = ipaddress.ip_address(ip_address)
+            for cidr in self.datacenter_ranges:
+                if ip_obj in ipaddress.ip_network(cidr):
+                    return True
+        except ValueError:
+            logger.warning(f"Invalid IP address or CIDR format: {ip_address}")
         return False
+
+    def _is_tor_exit_node(self, ip_address: str) -> bool:
+        """Check if IP is a known Tor exit node."""
+        # This would typically involve querying a real-time Tor exit node list service
+        # For a basic implementation, we can use a static list or a simple DNSBL check.
+        # Example: Check against a DNS-based Blackhole List (DNSBL) for Tor exit nodes
+        # For production, consider services like Tor Bulk Exit List or commercial APIs.
+        try:
+            # Example DNSBL for Tor exit nodes (replace with a reliable one if needed)
+            # This is a simplified example and might not be comprehensive or up-to-date.
+            # A more robust solution would involve a dedicated Tor exit node API.
+            reverse_ip = ".".join(ip_address.split(".")[::-1])
+            tor_dnsbl = f"{reverse_ip}.tor.dan.me.uk"
+            import socket
+            socket.gethostbyname(tor_dnsbl)
+            return True
+        except socket.gaierror:
+            return False
+        except Exception as e:
+            logger.error(f"Error checking Tor exit node for {ip_address}: {e}")
+            return False
     
     def _check_ip_reputation(self, ip_address: str) -> str:
         """Check IP reputation against threat intelligence"""

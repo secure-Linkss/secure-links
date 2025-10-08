@@ -1,16 +1,24 @@
 import os
 import sys
+
 # DON'T CHANGE THIS !!!
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+
+# Import models and blueprints
 from src.models.user import db, User
 from src.models.link import Link
 from src.models.tracking_event import TrackingEvent
 from src.models.campaign import Campaign
 from src.models.audit_log import AuditLog
-from src.models.security import SecuritySettings
+from src.models.security import SecuritySettings, BlockedIP, BlockedCountry
+from src.models.support_ticket import SupportTicket
+from src.models.subscription_verification import SubscriptionVerification
+
 from src.routes.user import user_bp
 from src.routes.auth import auth_bp
 from src.routes.links import links_bp
@@ -33,23 +41,6 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'ej5B3Amppi4gjpbC65te6rJ
 # Enable CORS for all routes
 CORS(app, supports_credentials=True)
 
-# Register blueprints
-app.register_blueprint(user_bp, url_prefix='/api')
-app.register_blueprint(auth_bp, url_prefix='/api')
-app.register_blueprint(links_bp, url_prefix='/api')
-app.register_blueprint(analytics_bp, url_prefix='/api')
-app.register_blueprint(campaigns_bp, url_prefix='/api')
-app.register_blueprint(settings_bp, url_prefix='/api')
-app.register_blueprint(admin_bp, url_prefix='/api')
-app.register_blueprint(admin_settings_bp, url_prefix='/api')
-app.register_blueprint(security_bp, url_prefix='/api')
-app.register_blueprint(telegram_bp, url_prefix='/api')
-app.register_blueprint(page_tracking_bp, url_prefix='/api')
-app.register_blueprint(shorten_bp, url_prefix='/api')
-app.register_blueprint(notifications_bp)
-app.register_blueprint(track_bp)
-app.register_blueprint(events_bp)
-
 # Database configuration - use SQLite for testing
 database_url = os.environ.get('DATABASE_URL')
 if database_url and 'postgresql' in database_url:
@@ -62,6 +53,7 @@ else:
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
+migrate = Migrate(app, db)
 
 with app.app_context():
     db.create_all()
@@ -81,6 +73,23 @@ with app.app_context():
         db.session.add(admin_user2)
         db.session.commit()
         print("Default admin user \"7thbrain\" created.")
+
+# Register blueprints
+app.register_blueprint(user_bp, url_prefix='/api')
+app.register_blueprint(auth_bp, url_prefix='/api')
+app.register_blueprint(links_bp, url_prefix='/api')
+app.register_blueprint(analytics_bp, url_prefix='/api')
+app.register_blueprint(campaigns_bp, url_prefix='/api')
+app.register_blueprint(settings_bp, url_prefix='/api')
+app.register_blueprint(admin_bp, url_prefix='/api')
+app.register_blueprint(admin_settings_bp, url_prefix='/api')
+app.register_blueprint(security_bp, url_prefix='/api')
+app.register_blueprint(telegram_bp, url_prefix='/api')
+app.register_blueprint(page_tracking_bp, url_prefix='/api')
+app.register_blueprint(shorten_bp, url_prefix='/api')
+app.register_blueprint(notifications_bp)
+app.register_blueprint(track_bp)
+app.register_blueprint(events_bp)
 
 @app.route('/', defaults={'path': ''}) 
 @app.route('/<path:path>')
@@ -107,4 +116,3 @@ if __name__ == '__main__':
 
 # For gunicorn
 application = app
-
