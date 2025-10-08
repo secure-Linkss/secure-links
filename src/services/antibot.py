@@ -75,8 +75,6 @@ class AdvancedAntiBotService:
                     logger.warning("Azure IP ranges download link not found on the page.")
         except Exception as e:
             logger.error(f"Error fetching Azure IP ranges: {e}")
-        }
-
         # Fetch AWS IP ranges
         try:
             response = requests.get(urls["aws"])

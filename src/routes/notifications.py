@@ -102,7 +102,7 @@ def get_notification_count():
         
     except Exception as e:
         print(f"Error fetching notification count: {e}")
-        return jsonify({"count": 0, "success": False}))
+        return jsonify({"count": 0, "success": False})
 
 @notifications_bp.route("/api/notifications/<int:notification_id>", methods=["DELETE"])
 @login_required

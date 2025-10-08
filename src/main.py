@@ -47,7 +47,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
 with app.app_context():
-    db.create_all()
+    # db.create_all()
     # Create default admin user if not exists
     if not User.query.filter_by(username="Brain").first():
         admin_user = User(username="Brain", email="admin@brainlinktracker.com")
